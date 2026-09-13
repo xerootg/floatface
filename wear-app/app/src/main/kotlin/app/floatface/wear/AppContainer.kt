@@ -6,10 +6,11 @@ import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.preferencesDataStoreFile
 import app.floatface.ble.AndroidOnewheelTransport
+import app.floatface.core.BoardConfigStore
 import app.floatface.core.OnewheelController
 import app.floatface.core.SettingsStore
-import app.floatface.wear.platform.BuildConfigUnlockConfig
 import app.floatface.wear.platform.CoroutineTicker
+import app.floatface.wear.platform.DataStoreBoardConfigStore
 import app.floatface.wear.platform.DataStoreSettingsStore
 import app.floatface.wear.platform.LogcatLogger
 import app.floatface.wear.platform.SystemClockAdapter
@@ -47,13 +48,20 @@ class AppContainer(context: Context) {
     val ticker = CoroutineTicker(applicationScope)
     val haptics = VibratorHaptics(appContext)
     val logger = LogcatLogger()
-    val unlockConfig = BuildConfigUnlockConfig()
 
     private val preferencesDataStore: DataStore<Preferences> =
         PreferenceDataStoreFactory.create(scope = applicationScope) {
             appContext.preferencesDataStoreFile("floatface_settings")
         }
     val settingsStore: SettingsStore = DataStoreSettingsStore(preferencesDataStore, applicationScope)
+
+    /**
+     * Runtime board config (unlock bytes + BLE MAC), persisted in DataStore and
+     * editable on-watch (SPEC §10). Seeded from the optional compile-time
+     * BuildConfig default; a runtime value always overrides it.
+     */
+    val boardConfigStore: BoardConfigStore =
+        DataStoreBoardConfigStore(preferencesDataStore, applicationScope, BuildConfig.UNLOCK_BYTES_HEX)
 
     private val ridesDir = File(appContext.filesDir, "rides")
     val rideLog = JsonlRideLog(ridesDir)
@@ -68,7 +76,7 @@ class AppContainer(context: Context) {
         clock = clock,
         haptics = haptics,
         recorder = rideRecorder,
-        unlockConfig = unlockConfig,
+        boardConfig = boardConfigStore,
         logger = logger,
         scope = applicationScope,
     )

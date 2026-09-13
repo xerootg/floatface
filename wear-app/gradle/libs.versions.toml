@@ -32,6 +32,7 @@ androidx-datastore-preferences = { module = "androidx.datastore:datastore-prefer
 androidx-health-services = { module = "androidx.health:health-services-client", version.ref = "healthServices" }
 androidx-wear = { module = "androidx.wear:wear", version.ref = "wear" }
 androidx-wear-ongoing = { module = "androidx.wear:wear-ongoing", version.ref = "wearOngoing" }
+androidx-wear-input = { module = "androidx.wear:wear-input", version = "1.1.0" }
 compose-bom = { module = "androidx.compose:compose-bom", version.ref = "composeBom" }
 compose-ui = { module = "androidx.compose.ui:ui" }
 compose-ui-graphics = { module = "androidx.compose.ui:ui-graphics" }

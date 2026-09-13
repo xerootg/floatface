@@ -41,24 +41,36 @@ which feeds the pure `reduce(state, event)` and applies the returned commands.
   (`ANDROID_HOME` / `local.properties` `sdk.dir`), platform 35 + build-tools 35.
 - The Gradle wrapper is pinned (8.14.3); use `./gradlew`.
 
-## Your board's unlock bytes (one-time setup)
+## Your board's unlock bytes + BLE MAC
 
 GT-class boards compute their unlock server-side (tied to your FutureMotion
-account), so it cannot be baked into the app — **you capture your own board's 20
-unlock bytes once**. Follow the repository root
+account), so it cannot be derived — **you capture your own board's 20 unlock
+bytes once**. Follow the repository root
 [README "Capturing your board's unlock bytes"](../README.md#capturing-your-boards-unlock-bytes)
-(the same procedure the Garmin app uses).
+(the same procedure the Garmin app uses). You can then provide them (and,
+optionally, the board's BLE MAC) in either of two ways:
 
-Then:
+### Option A — configure on the watch (recommended, no rebuild)
+
+Open the app → **Diagnostics** page → **Configure board**. Enter the 40-hex
+unlock string and, optionally, the board's BLE MAC (`AA:BB:CC:DD:EE:FF`) via the
+watch's keyboard/voice input. Both are persisted (DataStore) and take effect
+immediately — nothing is compiled in. Setting a MAC makes the app connect to
+**that specific board** instead of the first `ow…` it sees; leaving it blank
+matches any Onewheel by name. Clearing the unlock bytes reverts to the app's
+"Unlock bytes not configured" state.
+
+### Option B — bake a default in at build time (optional)
 
 ```bash
 cp unlock.properties.example unlock.properties   # gitignored — never commit it
 # edit unlock.properties: onewheel.unlockBytesHex=<your 40 hex chars>
 ```
 
-The build reads it into `BuildConfig.UNLOCK_BYTES_HEX`. Without it (clean
-checkout / CI), the build falls back to the all-zero placeholder and the app
-shows **"Unlock bytes not configured"** instead of attempting a doomed unlock.
+The build reads it into `BuildConfig.UNLOCK_BYTES_HEX` and uses it as the
+**default** until you override it on the watch. Without it (clean checkout / CI),
+the build falls back to the all-zero placeholder and the app shows **"Unlock
+bytes not configured"** until you set the bytes at runtime (Option A).
 
 ## Build, test, run
 
@@ -80,6 +92,27 @@ the board only allows one BLE connection and stops advertising once something is
 connected. Turn off your phone's Bluetooth (or force-quit the Onewheel app)
 before launching Floatface. If it can't find the board within 30 s, the Ride page
 says so.
+
+## Releases
+
+CI (`.github/workflows/wear-ci.yml`) builds + unit-tests the app on every push/PR
+touching `wear-app/`. To cut a release, push a tag:
+
+```bash
+git tag wear-v0.1.0 && git push origin wear-v0.1.0
+```
+
+`.github/workflows/wear-release.yml` then assembles the Wear OS release APK and
+attaches it to a GitHub Release. Optional repository secrets:
+
+- `SIGNING_KEYSTORE_BASE64`, `SIGNING_KEYSTORE_PASSWORD`, `SIGNING_KEY_ALIAS`,
+  `SIGNING_KEY_PASSWORD` — sign the APK (without them it builds unsigned).
+- `UNLOCK_BYTES_HEX` — pre-provision the published APK with your unlock bytes
+  (otherwise ship it unprovisioned and configure on the watch, Option A above).
+
+The release build ships with minification **off**; R8 keeps for Health Services /
+Compose are staged in `app/proguard-rules.pro` but not enabled until a signed
+build is validated on real hardware.
 
 ## Pages
 

@@ -61,9 +61,16 @@ interface RideLog {
     fun close()
 }
 
-/** Supplies the per-owner unlock bytes; null/placeholder => not configured (SPEC §10). */
-interface UnlockConfig {
-    fun unlockBytes(): ByteArray?
+/**
+ * Runtime board configuration store (SPEC §10): the per-owner unlock bytes and
+ * an optional BLE MAC to target one specific board, editable on-watch and
+ * persisted so neither is compiled in. [config] is the effective configuration
+ * (a BuildConfig value may seed the unlock hex until the owner overrides it).
+ */
+interface BoardConfigStore {
+    val config: StateFlow<BoardConfig>
+    suspend fun setUnlockBytesHex(hex: String?)
+    suspend fun setBleMac(mac: String?)
 }
 
 /** Persisted user preferences (SPEC §8.5). */

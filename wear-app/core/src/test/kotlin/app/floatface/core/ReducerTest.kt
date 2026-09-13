@@ -751,4 +751,50 @@ class ReducerTest {
             assertEquals(listOf(Command.StopKeepalive, Command.CloseGatt, Command.StartScan), r.commands, "from $s")
         }
     }
+
+    // Runtime config (SPEC §10): a configured MAC narrows matching to one board.
+
+    @Test
+    fun `a configured MAC targets only that board, ignoring others`() {
+        val m = DefaultConnectionStateMachine(
+            unlockBytesProvider = { validUnlock },
+            targetMacProvider = { "AA:BB:CC:DD:EE:FF" },
+        )
+        // A different address is ignored even though its name matches the ow- prefix.
+        val other = TransportEvent.DeviceFound("11:22:33:44:55:66", "ow123456", emptyList())
+        assertEquals(ConnectionState.Scanning, m.reduce(ConnectionState.Scanning, Event.Transport(other)).state)
+
+        // The configured address connects (case-insensitive), regardless of name.
+        val target = TransportEvent.DeviceFound("aa:bb:cc:dd:ee:ff", null, emptyList())
+        val r = m.reduce(ConnectionState.Scanning, Event.Transport(target))
+        assertEquals(ConnectionState.Connecting, r.state)
+        assertEquals(listOf(Command.StopScan, Command.Connect("aa:bb:cc:dd:ee:ff")), r.commands)
+    }
+
+    @Test
+    fun `no configured MAC falls back to name-prefix matching`() {
+        val m = DefaultConnectionStateMachine(unlockBytesProvider = { validUnlock }, targetMacProvider = { null })
+        val byName = TransportEvent.DeviceFound("11:22:33:44:55:66", "ow999", emptyList())
+        assertEquals(ConnectionState.Connecting, m.reduce(ConnectionState.Scanning, Event.Transport(byName)).state)
+        // A blank MAC is treated the same as unset.
+        val m2 = DefaultConnectionStateMachine(unlockBytesProvider = { validUnlock }, targetMacProvider = { "  " })
+        assertEquals(ConnectionState.Connecting, m2.reduce(ConnectionState.Scanning, Event.Transport(byName)).state)
+    }
+
+    @Test
+    fun `unlock bytes are read at runtime, not fixed at construction`() {
+        var hex: String? = null
+        val m = DefaultConnectionStateMachine(
+            unlockBytesProvider = { hex?.let { UnlockBytes.fromHex(it) } },
+            targetMacProvider = { null },
+        )
+        val discovered = Event.Transport(TransportEvent.ServicesDiscovered(GattStatus.SUCCESS, fullService))
+
+        // Not configured yet -> UnlockNotConfigured.
+        assertEquals(ConnectionState.UnlockNotConfigured, m.reduce(ConnectionState.Discovering, discovered).state)
+
+        // Configure at runtime -> the same event now proceeds to Subscribing.
+        hex = "0102030405060708090a0b0c0d0e0f1011121314"
+        assertTrue(m.reduce(ConnectionState.Discovering, discovered).state is ConnectionState.Subscribing)
+    }
 }

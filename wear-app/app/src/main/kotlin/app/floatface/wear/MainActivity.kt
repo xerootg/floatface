@@ -1,13 +1,16 @@
 package app.floatface.wear
 
 import android.Manifest
+import android.app.RemoteInput
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.wear.input.RemoteInputIntentHelper
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -67,9 +70,36 @@ class MainActivity : ComponentActivity() {
             val granted by permissionsGranted.collectAsStateWithLifecycle()
             if (granted) {
                 val container = (application as FloatfaceApplication).container
-                val viewModel: OnewheelViewModel = viewModel(factory = OnewheelViewModel.Factory(container.controller))
+                val viewModel: OnewheelViewModel = viewModel(
+                    factory = OnewheelViewModel.Factory(container.controller, container.boardConfigStore),
+                )
                 val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-                FloatfaceApp(state = uiState, onIntent = viewModel::dispatch)
+                val boardConfig by viewModel.config.collectAsStateWithLifecycle()
+
+                // On-watch text entry for the runtime config (SPEC §10) via Wear
+                // RemoteInput (keyboard/voice); parsed + persisted by the ViewModel.
+                val unlockLauncher = rememberLauncherForActivityResult(
+                    ActivityResultContracts.StartActivityForResult(),
+                ) { result ->
+                    remoteInputResult(result.data, KEY_UNLOCK)?.let { viewModel.setUnlockBytesHex(it) }
+                }
+                val macLauncher = rememberLauncherForActivityResult(
+                    ActivityResultContracts.StartActivityForResult(),
+                ) { result ->
+                    remoteInputResult(result.data, KEY_MAC)?.let { viewModel.setBleMac(it) }
+                }
+
+                FloatfaceApp(
+                    state = uiState,
+                    onIntent = viewModel::dispatch,
+                    config = boardConfig,
+                    onEditUnlockBytes = { unlockLauncher.launch(remoteInputIntent(KEY_UNLOCK, "Unlock bytes (40 hex)")) },
+                    onEditBleMac = { macLauncher.launch(remoteInputIntent(KEY_MAC, "BLE MAC (AA:BB:CC:DD:EE:FF)")) },
+                    onClearConfig = {
+                        viewModel.setUnlockBytesHex(null)
+                        viewModel.setBleMac(null)
+                    },
+                )
             } else {
                 PermissionRequestScreen(onRequest = { permissionLauncher.launch(requiredPermissions) })
             }
@@ -119,6 +149,23 @@ private fun PermissionRequestScreen(onRequest: () -> Unit) {
             }
         }
     }
+}
+
+private const val KEY_UNLOCK = "floatface_unlock_hex"
+private const val KEY_MAC = "floatface_ble_mac"
+
+/** Builds a Wear RemoteInput intent prompting for a single free-text value. */
+private fun remoteInputIntent(key: String, label: String): Intent {
+    val remoteInput = RemoteInput.Builder(key).setLabel(label).build()
+    val intent = RemoteInputIntentHelper.createActionRemoteInputIntent()
+    RemoteInputIntentHelper.putRemoteInputsExtra(intent, listOf(remoteInput))
+    return intent
+}
+
+/** Extracts the entered text for [key] from a RemoteInput activity result, or null. */
+private fun remoteInputResult(data: Intent?, key: String): String? {
+    val results = data?.let { RemoteInput.getResultsFromIntent(it) } ?: return null
+    return results.getCharSequence(key)?.toString()?.trim()?.takeIf { it.isNotEmpty() }
 }
 
 /** Routes a [UserIntent] from the UI to the matching [OnewheelViewModel] method. */

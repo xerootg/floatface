@@ -74,7 +74,7 @@ class OnewheelControllerTest {
         val clock = FakeClock()
         val haptics = FakeHaptics()
         val recorder = FakeRideRecorder()
-        val unlockConfig = FakeUnlockConfig(ByteArray(UnlockBytes.LENGTH) { (it + 1).toByte() })
+        val boardConfig = FakeBoardConfigStore.withUnlockBytes(ByteArray(UnlockBytes.LENGTH) { (it + 1).toByte() })
         val logger = FakeLogger()
         val backgroundScope = scope.backgroundScope
     }
@@ -87,7 +87,7 @@ class OnewheelControllerTest {
             clock = harness.clock,
             haptics = harness.haptics,
             recorder = harness.recorder,
-            unlockConfig = harness.unlockConfig,
+            boardConfig = harness.boardConfig,
             logger = harness.logger,
             scope = harness.backgroundScope,
             machine = ScriptedMachine(),

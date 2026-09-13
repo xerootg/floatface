@@ -8,7 +8,7 @@ import app.floatface.core.Logger
  *
  * SECURITY: never pass unlock bytes (raw or hex) to any of these calls — no
  * call site in this codebase should ever log [app.floatface.core.UnlockBytes]
- * output or `UnlockConfig.unlockBytes()`.
+ * output or the unlock bytes.
  */
 class LogcatLogger : Logger {
     override fun d(tag: String, msg: String) {

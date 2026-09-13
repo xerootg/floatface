@@ -1,0 +1,53 @@
+name: Wear CI
+
+# Build + test the Wear OS app on every push/PR that touches it.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'wear-app/**'
+      - '.github/workflows/wear-ci.yml'
+  pull_request:
+    paths:
+      - 'wear-app/**'
+      - '.github/workflows/wear-ci.yml'
+  workflow_dispatch:
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: wear-app
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      # No unlock.properties in CI — the build falls back to the all-zero
+      # placeholder, so it compiles/tests without the per-owner secret.
+      - name: Run unit tests + assemble debug
+        run: >-
+          ./gradlew --no-daemon
+          :core:test
+          :ble:testDebugUnitTest
+          :app:testDebugUnitTest
+          :app:assembleDebug
+
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wear-test-reports
+          path: 'wear-app/**/build/reports/tests/**'
+          if-no-files-found: ignore

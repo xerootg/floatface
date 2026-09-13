@@ -33,6 +33,6 @@ class AppContainerSmokeTest {
         assertNotNull(container.ticker)
         assertNotNull(container.haptics)
         assertNotNull(container.logger)
-        assertNotNull(container.unlockConfig)
+        assertNotNull(container.boardConfigStore)
     }
 }

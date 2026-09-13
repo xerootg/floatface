@@ -67,6 +67,28 @@ enum class SpeedUnit { MPH, KMH }
 enum class TempUnit { F, C }
 
 /**
+ * Runtime board configuration (SPEC §10): the per-owner unlock bytes (as hex)
+ * and, optionally, the board's BLE MAC address used to target one specific
+ * board. Persisted at runtime (DataStore) so neither has to be compiled in; a
+ * BuildConfig value may seed [unlockBytesHex] as a default until the owner sets
+ * their own. A blank/null [bleMac] means "match any Onewheel by name/service".
+ */
+data class BoardConfig(
+    val unlockBytesHex: String? = null,
+    val bleMac: String? = null,
+) {
+    companion object {
+        val EMPTY = BoardConfig()
+
+        /** True for a syntactically plausible BLE MAC (`AA:BB:CC:DD:EE:FF`). */
+        fun isValidMac(mac: String?): Boolean {
+            val m = mac?.trim() ?: return false
+            return Regex("^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$").matches(m)
+        }
+    }
+}
+
+/**
  * Immutable snapshot of the latest decoded telemetry (SPEC §3.2). All fields are
  * nullable and null until first received; temperatures are stored here in °F for
  * display (raw Celsius is persisted to the ride log — SPEC §4a).

@@ -101,7 +101,7 @@ fun BoardScreen(state: UiState, onIntent: (UserIntent) -> Unit) {
 }
 
 @Composable
-fun DiagnosticsScreen(state: UiState, onIntent: (UserIntent) -> Unit) {
+fun DiagnosticsScreen(state: UiState, onIntent: (UserIntent) -> Unit, onOpenConfig: () -> Unit = {}) {
     val telemetry = state.telemetry
     ScalingLazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(8.dp)) {
         item { Text(text = "Trip Ah: ${valueOrDash(telemetry.tripAmpHours)}") }
@@ -110,5 +110,10 @@ fun DiagnosticsScreen(state: UiState, onIntent: (UserIntent) -> Unit) {
         item { Text(text = "Firmware: ${valueOrDash(telemetry.firmwareRevision)}") }
         item { Text(text = "Gen: ${state.board.generation}${if (!state.board.confirmed) " (unconfirmed)" else ""}") }
         item { Text(text = "Connection: ${connectionStatusText(state.connection)}") }
+        item {
+            Button(onClick = onOpenConfig, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
+                Text(text = "Configure board")
+            }
+        }
     }
 }

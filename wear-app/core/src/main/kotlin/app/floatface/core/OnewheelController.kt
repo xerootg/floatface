@@ -23,10 +23,13 @@ class OnewheelController(
     private val clock: Clock,
     private val haptics: Haptics,
     private val recorder: RideRecorder,
-    unlockConfig: UnlockConfig,
+    boardConfig: BoardConfigStore,
     private val logger: Logger,
     private val scope: CoroutineScope,
-    private val machine: ConnectionStateMachine = DefaultConnectionStateMachine(unlockConfig.unlockBytes()),
+    private val machine: ConnectionStateMachine = DefaultConnectionStateMachine(
+        unlockBytesProvider = { boardConfig.config.value.unlockBytesHex?.let { UnlockBytes.fromHex(it) } },
+        targetMacProvider = { boardConfig.config.value.bleMac },
+    ),
 ) {
     private companion object {
         const val TAG = "OnewheelController"

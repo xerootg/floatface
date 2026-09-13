@@ -25,8 +25,34 @@ android {
         minSdk = 30
         targetSdk = 34
         versionCode = 1
-        versionName = "0.1.0"
+        versionName = System.getenv("FLOATFACE_VERSION_NAME")?.takeUnless { it.isBlank() } ?: "0.1.0"
         buildConfigField("String", "UNLOCK_BYTES_HEX", "\"$unlockBytesHex\"")
+    }
+
+    // Release signing is configured only when a keystore is supplied via env
+    // (CI secrets). Otherwise `assembleRelease` still succeeds, producing an
+    // unsigned APK usable as a build artifact.
+    signingConfigs {
+        val keystorePath = System.getenv("FLOATFACE_KEYSTORE")
+        if (!keystorePath.isNullOrBlank() && file(keystorePath).exists()) {
+            create("release") {
+                storeFile = file(keystorePath)
+                storePassword = System.getenv("FLOATFACE_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("FLOATFACE_KEY_ALIAS")
+                keyPassword = System.getenv("FLOATFACE_KEY_PASSWORD")
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            // Minification is intentionally off until a signed release is
+            // validated on real hardware (Health Services / Compose reflection);
+            // keeps are staged in proguard-rules.pro for when it is enabled.
+            isMinifyEnabled = false
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            signingConfig = signingConfigs.findByName("release")
+        }
     }
 
     buildFeatures {
@@ -43,6 +69,13 @@ android {
         unitTests {
             isIncludeAndroidResources = true
         }
+    }
+
+    lint {
+        // registerForActivityResult is called on a ComponentActivity (not a
+        // Fragment), where it works regardless of the fragment artifact a
+        // transitive dep happens to pin — so this check is a false positive here.
+        disable += "InvalidFragmentVersionForActivityResult"
     }
 
     packaging {
@@ -72,6 +105,7 @@ dependencies {
     implementation(libs.androidx.health.services)
     implementation(libs.androidx.wear)
     implementation(libs.androidx.wear.ongoing)
+    implementation(libs.androidx.wear.input)
 
     val composeBom = platform(libs.compose.bom)
     implementation(composeBom)

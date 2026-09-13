@@ -6,7 +6,7 @@ import app.floatface.core.FakeLogger
 import app.floatface.core.FakeRideRecorder
 import app.floatface.core.FakeTicker
 import app.floatface.core.FakeTransport
-import app.floatface.core.FakeUnlockConfig
+import app.floatface.core.FakeBoardConfigStore
 import app.floatface.core.OnewheelController
 import app.floatface.core.RecordingState
 import app.floatface.core.TransportEvent
@@ -39,7 +39,7 @@ class OnewheelViewModelTest {
             clock = FakeClock(),
             haptics = FakeHaptics(),
             recorder = recorder,
-            unlockConfig = FakeUnlockConfig(ByteArray(20) { 1 }),
+            boardConfig = FakeBoardConfigStore.withUnlockBytes(ByteArray(20) { 1 }),
             logger = FakeLogger(),
             scope = scope,
         )
@@ -49,7 +49,7 @@ class OnewheelViewModelTest {
     @Test
     fun uiStateExposesControllerUiState() = runTest {
         val (controller, _, _) = newController(TestScope(StandardTestDispatcher(testScheduler)))
-        val viewModel = OnewheelViewModel(controller)
+        val viewModel = OnewheelViewModel(controller, FakeBoardConfigStore())
 
         assertEquals(controller.uiState.value, viewModel.uiState.value)
     }
@@ -58,7 +58,7 @@ class OnewheelViewModelTest {
     fun toggleRecordingForwardsIntentToController() = runTest {
         val scope = TestScope(StandardTestDispatcher(testScheduler))
         val (controller, _, recorder) = newController(scope)
-        val viewModel = OnewheelViewModel(controller)
+        val viewModel = OnewheelViewModel(controller, FakeBoardConfigStore())
 
         controller.start()
         scope.testScheduler.runCurrent()
@@ -79,7 +79,7 @@ class OnewheelViewModelTest {
     fun nextPageForwardsIntentToController() = runTest {
         val scope = TestScope(StandardTestDispatcher(testScheduler))
         val (controller, _, _) = newController(scope)
-        val viewModel = OnewheelViewModel(controller)
+        val viewModel = OnewheelViewModel(controller, FakeBoardConfigStore())
 
         controller.start()
         scope.testScheduler.runCurrent()
@@ -106,7 +106,7 @@ class OnewheelViewModelTest {
     fun retryAndShutdownForwardToController() = runTest {
         val scope = TestScope(StandardTestDispatcher(testScheduler))
         val (controller, transport, _) = newController(scope)
-        val viewModel = OnewheelViewModel(controller)
+        val viewModel = OnewheelViewModel(controller, FakeBoardConfigStore())
 
         controller.start()
         scope.testScheduler.runCurrent()
@@ -127,7 +127,7 @@ class OnewheelViewModelTest {
     @Test
     fun factoryCreatesViewModelWrappingController() = runTest {
         val (controller, _, _) = newController(TestScope(StandardTestDispatcher(testScheduler)))
-        val factory = OnewheelViewModel.Factory(controller)
+        val factory = OnewheelViewModel.Factory(controller, FakeBoardConfigStore())
 
         val viewModel = factory.create(OnewheelViewModel::class.java)
 

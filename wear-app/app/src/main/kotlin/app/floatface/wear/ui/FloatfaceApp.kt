@@ -7,7 +7,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -24,6 +27,7 @@ import androidx.wear.compose.material.MaterialTheme
 import androidx.wear.compose.material.PageIndicatorState
 import androidx.wear.compose.material.Scaffold
 import androidx.wear.compose.material.Text
+import app.floatface.core.BoardConfig
 import app.floatface.core.UiState
 import app.floatface.core.UserIntent
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -40,7 +44,26 @@ private const val PAGE_COUNT = 4
  */
 @OptIn(ExperimentalWearFoundationApi::class)
 @Composable
-fun FloatfaceApp(state: UiState, onIntent: (UserIntent) -> Unit) {
+fun FloatfaceApp(
+    state: UiState,
+    onIntent: (UserIntent) -> Unit,
+    config: BoardConfig = BoardConfig.EMPTY,
+    onEditUnlockBytes: () -> Unit = {},
+    onEditBleMac: () -> Unit = {},
+    onClearConfig: () -> Unit = {},
+) {
+    var showConfig by remember { mutableStateOf(false) }
+    if (showConfig) {
+        ConfigScreen(
+            config = config,
+            onEditUnlockBytes = onEditUnlockBytes,
+            onEditBleMac = onEditBleMac,
+            onClearConfig = onClearConfig,
+            onBack = { showConfig = false },
+        )
+        return
+    }
+
     val pagerState = rememberPagerState(initialPage = state.page) { PAGE_COUNT }
     val focusRequester = remember { FocusRequester() }
 
@@ -88,7 +111,7 @@ fun FloatfaceApp(state: UiState, onIntent: (UserIntent) -> Unit) {
                 0 -> RideScreen(state, onIntent)
                 1 -> StatsScreen(state, onIntent)
                 2 -> BoardScreen(state, onIntent)
-                else -> DiagnosticsScreen(state, onIntent)
+                else -> DiagnosticsScreen(state, onIntent, onOpenConfig = { showConfig = true })
             }
         }
     }

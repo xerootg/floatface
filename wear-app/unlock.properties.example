@@ -6,6 +6,10 @@
 # repository root README.md ("Capturing your board's unlock bytes") for the
 # capture procedure, and PROTOCOL.md for why it can't be derived or shared.
 #
+# This file is OPTIONAL: it only bakes in a compile-time DEFAULT. You can also
+# set the unlock bytes (and the board's BLE MAC) on the watch at runtime via
+# Diagnostics -> Configure board, which overrides this value and needs no rebuild.
+#
 # The all-zero placeholder below makes the app show "Unlock bytes not
 # configured" instead of attempting a doomed unlock. A clean checkout / CI build
 # works without this file (the build falls back to all-zero).

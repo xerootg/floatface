@@ -175,9 +175,24 @@ class FakeRideLog : RideLog {
     }
 }
 
-/** Fake [UnlockConfig] returning fixed bytes. */
-class FakeUnlockConfig(private val bytes: ByteArray?) : UnlockConfig {
-    override fun unlockBytes(): ByteArray? = bytes
+/** Fake [BoardConfigStore] with a settable, in-memory [BoardConfig]. */
+class FakeBoardConfigStore(initial: BoardConfig = BoardConfig.EMPTY) : BoardConfigStore {
+    private val _config = MutableStateFlow(initial)
+    override val config: StateFlow<BoardConfig> = _config
+
+    override suspend fun setUnlockBytesHex(hex: String?) {
+        _config.value = _config.value.copy(unlockBytesHex = hex)
+    }
+
+    override suspend fun setBleMac(mac: String?) {
+        _config.value = _config.value.copy(bleMac = mac)
+    }
+
+    /** Test helper: 20 non-zero bytes as hex, so the reducer sees a configured board. */
+    companion object {
+        fun withUnlockBytes(bytes: ByteArray, mac: String? = null): FakeBoardConfigStore =
+            FakeBoardConfigStore(BoardConfig(unlockBytesHex = bytes.joinToString("") { "%02x".format(it) }, bleMac = mac))
+    }
 }
 
 /** Fake [SettingsStore] defaulting to MPH/F, settable via the mutable flows. */

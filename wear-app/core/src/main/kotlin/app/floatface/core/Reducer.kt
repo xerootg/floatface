@@ -11,11 +11,23 @@ package app.floatface.core
  * [UnlockBytes.isConfigured] returns true for it (20 bytes, not all-zero).
  */
 class DefaultConnectionStateMachine(
-    private val unlockBytes: ByteArray?,
+    private val unlockBytesProvider: () -> ByteArray?,
+    private val targetMacProvider: () -> String? = { null },
     private val keepaliveIntervalMs: Long = 12_000L,
 ) : ConnectionStateMachine {
 
-    private val configured: Boolean = UnlockBytes.isConfigured(unlockBytes)
+    /** Back-compat / fixed-config convenience (tests, simple wiring). */
+    constructor(unlockBytes: ByteArray?, keepaliveIntervalMs: Long = 12_000L) :
+        this({ unlockBytes }, { null }, keepaliveIntervalMs)
+
+    /** Current effective unlock bytes, or null when not configured (SPEC §10). */
+    private fun unlockBytesOrNull(): ByteArray? = unlockBytesProvider()?.takeIf { UnlockBytes.isConfigured(it) }
+
+    /** Keepalive/liveness re-unlock; holds (no write) if config was cleared mid-ride. */
+    private fun writeUnlockOrHold(state: ConnectionState): Reduction {
+        val bytes = unlockBytesOrNull() ?: return Reduction(state)
+        return Reduction(state, listOf(Command.WriteUnlock(bytes)))
+    }
 
     override fun reduce(state: ConnectionState, event: Event): Reduction {
         // Global overrides, checked before any state-specific dispatch:
@@ -62,7 +74,7 @@ class DefaultConnectionStateMachine(
     private fun onScanningLike(state: ConnectionState, event: Event): Reduction {
         if (event is Event.Transport) {
             val te = event.event
-            if (te is TransportEvent.DeviceFound && matches(te.name, te.serviceUuids)) {
+            if (te is TransportEvent.DeviceFound && matches(te.deviceId, te.name, te.serviceUuids)) {
                 return Reduction(ConnectionState.Connecting, listOf(Command.StopScan, Command.Connect(te.deviceId)))
             }
             return Reduction(state)
@@ -95,12 +107,13 @@ class DefaultConnectionStateMachine(
         if (OwCharacteristic.UART_SERIAL_WRITE !in te.available) {
             return Reduction(ConnectionState.WriteCharNotFound, listOf(Command.CloseGatt))
         }
-        if (!configured) {
+        val bytes = unlockBytesOrNull()
+        if (bytes == null) {
             return Reduction(ConnectionState.UnlockNotConfigured, listOf(Command.CloseGatt))
         }
         val notify = OwCharacteristic.NOTIFY_SET.filter { it in te.available }
         return if (notify.isEmpty()) {
-            Reduction(ConnectionState.Unlocking(0), listOf(Command.WriteUnlock(unlockBytes!!)))
+            Reduction(ConnectionState.Unlocking(0), listOf(Command.WriteUnlock(bytes)))
         } else {
             Reduction(
                 ConnectionState.Subscribing(notify),
@@ -120,7 +133,9 @@ class DefaultConnectionStateMachine(
                 }
                 val rest = remaining.drop(1)
                 if (rest.isEmpty()) {
-                    Reduction(ConnectionState.Unlocking(0), listOf(Command.WriteUnlock(unlockBytes!!)))
+                    val bytes = unlockBytesOrNull()
+                        ?: return Reduction(ConnectionState.UnlockNotConfigured, listOf(Command.CloseGatt))
+                    Reduction(ConnectionState.Unlocking(0), listOf(Command.WriteUnlock(bytes)))
                 } else {
                     Reduction(ConnectionState.Subscribing(rest), listOf(Command.EnableNotifications(rest.first())))
                 }
@@ -145,10 +160,13 @@ class DefaultConnectionStateMachine(
                             Command.IssueInitialReads(OwCharacteristic.INITIAL_READS),
                         ),
                     )
-                } else if (state.attempt < 1) {
-                    Reduction(ConnectionState.Unlocking(state.attempt + 1), listOf(Command.WriteUnlock(unlockBytes!!)))
                 } else {
-                    Reduction(ConnectionState.Error("Unlock failed"), listOf(Command.CloseGatt))
+                    val retryBytes = unlockBytesOrNull()
+                    if (state.attempt < 1 && retryBytes != null) {
+                        Reduction(ConnectionState.Unlocking(state.attempt + 1), listOf(Command.WriteUnlock(retryBytes)))
+                    } else {
+                        Reduction(ConnectionState.Error("Unlock failed"), listOf(Command.CloseGatt))
+                    }
                 }
             is TransportEvent.Disconnected -> rescan()
             else -> Reduction(state)
@@ -156,8 +174,8 @@ class DefaultConnectionStateMachine(
     }
 
     private fun onConnected(state: ConnectionState.Connected, event: Event): Reduction = when (event) {
-        is Event.KeepaliveTick -> Reduction(state, listOf(Command.WriteUnlock(unlockBytes!!)))
-        is Event.LivenessTimeout -> Reduction(state, listOf(Command.WriteUnlock(unlockBytes!!)))
+        is Event.KeepaliveTick -> writeUnlockOrHold(state)
+        is Event.LivenessTimeout -> writeUnlockOrHold(state)
         is Event.Transport ->
             if (event.event is TransportEvent.Disconnected) rescan() else Reduction(state)
         else -> Reduction(state)
@@ -184,7 +202,12 @@ class DefaultConnectionStateMachine(
         else -> false
     }
 
-    private fun matches(name: String?, uuids: List<String>): Boolean {
+    private fun matches(deviceId: String, name: String?, uuids: List<String>): Boolean {
+        val targetMac = targetMacProvider()?.trim()?.takeIf { it.isNotEmpty() }
+        if (targetMac != null) {
+            // A configured MAC narrows matching to exactly that board (SPEC §10).
+            return deviceId.equals(targetMac, ignoreCase = true)
+        }
         val nameMatch = name != null && name.lowercase().startsWith("ow")
         val uuidMatch = uuids.any { it.equals(OwCharacteristic.SERVICE_UUID, ignoreCase = true) }
         return nameMatch || uuidMatch
