@@ -1,0 +1,12 @@
+# Gradle / build
+.gradle/
+build/
+**/build/
+# Android / IDE
+local.properties
+.idea/
+*.iml
+.cxx/
+captures/
+# Per-owner unlock bytes — NEVER commit (see §10 / root README capture steps)
+unlock.properties
