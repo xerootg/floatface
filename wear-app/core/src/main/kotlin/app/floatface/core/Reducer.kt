@@ -170,8 +170,11 @@ class DefaultConnectionStateMachine(
         return Reduction(state)
     }
 
+    // StopKeepalive first: a drop-to-rescan must tear down the keepalive ticker
+    // (the reducer is the single source of truth for its lifecycle), otherwise it
+    // keeps firing every interval against a dead link. CloseGatt then StartScan.
     private fun rescan(): Reduction =
-        Reduction(ConnectionState.Rescanning, listOf(Command.CloseGatt, Command.StartScan))
+        Reduction(ConnectionState.Rescanning, listOf(Command.StopKeepalive, Command.CloseGatt, Command.StartScan))
 
     private fun isTerminalError(state: ConnectionState): Boolean = when (state) {
         is ConnectionState.ServiceNotFound,

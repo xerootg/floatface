@@ -145,7 +145,13 @@ class AndroidOnewheelTransport(
             ops = gattOpsFactory(newGatt),
             scope = scope,
             timeoutMs = opTimeoutMs,
-            onTimeout = { op -> emit(TransportEvent.OperationFailed(opKindOf(op), GattStatus(STATUS_TIMEOUT))) },
+            onTimeout = { op ->
+                // A timed-out GATT op means the link is presumed dead: report the
+                // failure and surface it as a disconnect so the state machine tears
+                // down (CloseGatt) and rescans (SPEC §3.3 keepalive robustness).
+                emit(TransportEvent.OperationFailed(opKindOf(op), GattStatus(STATUS_TIMEOUT)))
+                emit(TransportEvent.Disconnected(GattStatus(STATUS_TIMEOUT)))
+            },
         )
     }
 

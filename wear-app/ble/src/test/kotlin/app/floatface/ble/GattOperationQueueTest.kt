@@ -96,7 +96,7 @@ class GattOperationQueueTest {
     }
 
     @Test
-    fun `per-op timeout fails the current op via the callback and advances`() = runTest {
+    fun `per-op timeout fails the op and abandons the queue (dead link)`() = runTest {
         val fake = FakeGattOps()
         val timedOut = mutableListOf<GattQueueOp>()
         val queue = GattOperationQueue(fake, this, timeoutMs = 8000L, onTimeout = { timedOut += it })
@@ -108,9 +108,29 @@ class GattOperationQueueTest {
         runCurrent()
 
         assertEquals(listOf(GattQueueOp.Read(OwCharacteristic.BATTERY_LEVEL)), timedOut)
-        // The second op was dispatched once the first timed out.
-        assertEquals(listOf("read:BATTERY_LEVEL", "read:RIDING_MODE"), fake.calls)
-        assertEquals(GattQueueOp.Read(OwCharacteristic.RIDING_MODE), queue.currentOp)
+        // The queued second op is NOT dispatched onto a presumed-dead link.
+        assertEquals(listOf("read:BATTERY_LEVEL"), fake.calls)
+        assertNull(queue.currentOp)
+        assertTrue(queue.isIdle)
+        assertEquals(0, queue.pendingCount)
+    }
+
+    @Test
+    fun `a late callback after a timeout is a safe no-op (never completes the wrong op)`() = runTest {
+        val fake = FakeGattOps()
+        val timedOut = mutableListOf<GattQueueOp>()
+        val queue = GattOperationQueue(fake, this, timeoutMs = 8000L, onTimeout = { timedOut += it })
+
+        queue.enqueue(GattQueueOp.Read(OwCharacteristic.BATTERY_LEVEL))
+        advanceTimeBy(8000L)
+        runCurrent()
+        assertTrue(queue.isIdle)
+
+        // The real GATT callback for the timed-out op arrives late; it must not
+        // dispatch or complete anything (queue already idle and abandoned).
+        queue.completeCurrent(GattStatus.SUCCESS)
+        assertEquals(listOf("read:BATTERY_LEVEL"), fake.calls)
+        assertTrue(queue.isIdle)
     }
 
     @Test

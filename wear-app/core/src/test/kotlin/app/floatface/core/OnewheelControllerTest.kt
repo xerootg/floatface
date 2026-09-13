@@ -323,4 +323,27 @@ class OnewheelControllerTest {
             cancelAndIgnoreRemainingEvents()
         }
     }
+
+    // Regression: the scan timeout must be re-armed on every rescan (not only the
+    // first scan window), and the keepalive ticker must be torn down on a drop.
+    @Test
+    fun `rescan re-arms scan timeout and cancels keepalive`() = runControllerTest { harness, controller ->
+        controller.start()
+        runCurrent()
+        // Initial scan window is armed exactly once.
+        assertEquals(1, harness.ticker.scheduled.count { it.intervalMs == 30_000L && !it.cancelled })
+
+        // Connect (StopScan cancels the scan timeout; StartKeepalive arms a 12s ticker).
+        harness.transport.emit(TransportEvent.DeviceFound(deviceId, "ow-test", emptyList()))
+        harness.transport.emit(TransportEvent.Connected)
+        runCurrent()
+        assertEquals(0, harness.ticker.scheduled.count { it.intervalMs == 30_000L && !it.cancelled })
+        assertEquals(1, harness.ticker.scheduled.count { it.intervalMs == 12_000L && !it.cancelled })
+
+        // Drop -> rescan: keepalive cancelled, a fresh scan timeout armed.
+        harness.transport.emit(TransportEvent.Disconnected(GattStatus.SUCCESS))
+        runCurrent()
+        assertEquals(0, harness.ticker.scheduled.count { it.intervalMs == 12_000L && !it.cancelled })
+        assertEquals(1, harness.ticker.scheduled.count { it.intervalMs == 30_000L && !it.cancelled })
+    }
 }

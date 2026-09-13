@@ -133,7 +133,7 @@ class ReducerTest {
         val m = machine()
         val r = m.reduce(ConnectionState.Connecting, Event.Transport(TransportEvent.Disconnected(GattStatus(19))))
         assertEquals(ConnectionState.Rescanning, r.state)
-        assertEquals(listOf(Command.CloseGatt, Command.StartScan), r.commands)
+        assertEquals(listOf(Command.StopKeepalive, Command.CloseGatt, Command.StartScan), r.commands)
     }
 
     @Test
@@ -142,7 +142,7 @@ class ReducerTest {
         val fail = TransportEvent.OperationFailed(GattOp.CONNECT, GattStatus(133))
         val r = m.reduce(ConnectionState.Connecting, Event.Transport(fail))
         assertEquals(ConnectionState.Rescanning, r.state)
-        assertEquals(listOf(Command.CloseGatt, Command.StartScan), r.commands)
+        assertEquals(listOf(Command.StopKeepalive, Command.CloseGatt, Command.StartScan), r.commands)
     }
 
     @Test
@@ -306,7 +306,7 @@ class ReducerTest {
         val state = ConnectionState.Subscribing(OwCharacteristic.NOTIFY_SET)
         val r = m.reduce(state, Event.Transport(TransportEvent.Disconnected(GattStatus(19))))
         assertEquals(ConnectionState.Rescanning, r.state)
-        assertEquals(listOf(Command.CloseGatt, Command.StartScan), r.commands)
+        assertEquals(listOf(Command.StopKeepalive, Command.CloseGatt, Command.StartScan), r.commands)
     }
 
     // ---------------------------------------------------------------------
@@ -344,7 +344,7 @@ class ReducerTest {
         val m = machine()
         val r = m.reduce(ConnectionState.Unlocking(0), Event.Transport(TransportEvent.Disconnected(GattStatus(19))))
         assertEquals(ConnectionState.Rescanning, r.state)
-        assertEquals(listOf(Command.CloseGatt, Command.StartScan), r.commands)
+        assertEquals(listOf(Command.StopKeepalive, Command.CloseGatt, Command.StartScan), r.commands)
     }
 
     // ---------------------------------------------------------------------
@@ -372,7 +372,7 @@ class ReducerTest {
         val m = machine()
         val r = m.reduce(ConnectionState.Connected, Event.Transport(TransportEvent.Disconnected(GattStatus(19))))
         assertEquals(ConnectionState.Rescanning, r.state)
-        assertEquals(listOf(Command.CloseGatt, Command.StartScan), r.commands)
+        assertEquals(listOf(Command.StopKeepalive, Command.CloseGatt, Command.StartScan), r.commands)
     }
 
     @Test
@@ -748,7 +748,7 @@ class ReducerTest {
         for (s in states) {
             val r = m.reduce(s, Event.Transport(TransportEvent.Disconnected(GattStatus(19))))
             assertEquals(ConnectionState.Rescanning, r.state, "from $s")
-            assertEquals(listOf(Command.CloseGatt, Command.StartScan), r.commands, "from $s")
+            assertEquals(listOf(Command.StopKeepalive, Command.CloseGatt, Command.StartScan), r.commands, "from $s")
         }
     }
 }

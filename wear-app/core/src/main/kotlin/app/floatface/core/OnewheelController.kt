@@ -47,6 +47,7 @@ class OnewheelController(
 
     private var keepaliveCancellable: Cancellable? = null
     private var livenessCancellable: Cancellable? = null
+    private var scanTimeoutCancellable: Cancellable? = null
 
     /** Begins the merged-event loop, starts scanning, and arms the scan timeout. */
     fun start() {
@@ -66,7 +67,20 @@ class OnewheelController(
 
         _uiState.update { it.copy(connection = ConnectionState.Scanning) }
         transport.startScan()
-        ticker.schedule(SCAN_TIMEOUT_MS, false) { channel.trySend(Event.ScanTimeout) }
+        armScanTimeout()
+    }
+
+    // Armed on every entry into a scanning state (initial start AND each rescan/
+    // retry via Command.StartScan) so Event.ScanTimeout is reachable for all of
+    // them, not just the first 30s window. Cancelled once we leave scanning.
+    private fun armScanTimeout() {
+        scanTimeoutCancellable?.cancel()
+        scanTimeoutCancellable = ticker.schedule(SCAN_TIMEOUT_MS, false) { channel.trySend(Event.ScanTimeout) }
+    }
+
+    private fun cancelScanTimeout() {
+        scanTimeoutCancellable?.cancel()
+        scanTimeoutCancellable = null
     }
 
     /** Enqueues a [UserIntent] onto the single merged input. */
@@ -89,9 +103,9 @@ class OnewheelController(
 
     private fun runCommand(command: Command) {
         when (command) {
-            Command.StartScan -> transport.startScan()
-            Command.StopScan -> transport.stopScan()
-            is Command.Connect -> transport.connect(command.deviceId)
+            Command.StartScan -> { transport.startScan(); armScanTimeout() }
+            Command.StopScan -> { transport.stopScan(); cancelScanTimeout() }
+            is Command.Connect -> { transport.connect(command.deviceId); cancelScanTimeout() }
             Command.DiscoverServices -> transport.discoverServices()
             Command.CloseGatt -> transport.closeGatt()
             is Command.EnableNotifications -> transport.enableNotifications(command.char)
@@ -126,6 +140,9 @@ class OnewheelController(
             is TransportEvent.CharacteristicChanged -> onTelemetry(te.char, te.value)
             is TransportEvent.ReadComplete -> if (te.status.isSuccess) onTelemetry(te.char, te.value)
             is TransportEvent.Disconnected -> {
+                // Link state resets; ride state (distance/range/halfway) is kept.
+                livenessCancellable?.cancel()
+                livenessCancellable = null
                 _uiState.update { it.copy(telemetry = TelemetrySnapshot.EMPTY) }
                 distance.clearTimestamp()
             }
