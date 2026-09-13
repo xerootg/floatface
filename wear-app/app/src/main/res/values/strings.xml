@@ -19,4 +19,8 @@
     <string name="halfway_warning">Past halfway — head back</string>
     <string name="recording_on">● Recording</string>
     <string name="recording_hint">Start/Stop to record</string>
+
+    <!-- Foreground service (SPEC §9) -->
+    <string name="ride_notification_channel_name">Floatface ride</string>
+    <string name="ride_notification_title">Floatface is connected to your board</string>
 </resources>

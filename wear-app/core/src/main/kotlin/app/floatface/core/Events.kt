@@ -92,6 +92,7 @@ sealed interface Command {
     data object StartScan : Command
     data object StopScan : Command
     data class Connect(val deviceId: String) : Command
+    data object DiscoverServices : Command
     data object CloseGatt : Command
     data class EnableNotifications(val char: OwCharacteristic) : Command
     data class Read(val char: OwCharacteristic) : Command
@@ -105,10 +106,7 @@ sealed interface Command {
 
     data class StartKeepalive(val intervalMs: Long) : Command
     data object StopKeepalive : Command
-    data class Buzz(val pattern: BuzzPattern) : Command
     data object Disconnect : Command
-    data object StartRecording : Command
-    data object StopRecording : Command
 }
 
 /** Connection lifecycle states (SPEC §4.5.5). */
@@ -117,8 +115,13 @@ sealed interface ConnectionState {
     data object ScanTimedOut : ConnectionState
     data object Connecting : ConnectionState
     data object Discovering : ConnectionState
-    data object Subscribing : ConnectionState
-    data object Unlocking : ConnectionState
+
+    /** Enabling notifications one characteristic at a time; [remaining] shrinks per ack (SPEC §3.5). */
+    data class Subscribing(val remaining: List<OwCharacteristic>) : ConnectionState
+
+    /** Unlock write in flight; [attempt] enables a single bounded retry on write failure. */
+    data class Unlocking(val attempt: Int = 0) : ConnectionState
+
     data object Connected : ConnectionState
     data object Rescanning : ConnectionState
     data object UnlockNotConfigured : ConnectionState
