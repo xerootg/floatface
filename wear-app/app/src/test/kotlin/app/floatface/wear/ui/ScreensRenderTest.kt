@@ -1,6 +1,8 @@
 package app.floatface.wear.ui
 
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import app.floatface.core.BoardModel
@@ -84,7 +86,8 @@ class ScreensRenderTest {
 
         composeRule.setContent { FloatfaceApp(state = state, onIntent = {}) }
 
-        composeRule.onNodeWithText("Board not found", substring = true).assertExists()
+        // Rendered both in the status header and as the Ride-page hint (SPEC §8.3).
+        composeRule.onAllNodesWithText("Board not found", substring = true).onFirst().assertExists()
     }
 
     @Test

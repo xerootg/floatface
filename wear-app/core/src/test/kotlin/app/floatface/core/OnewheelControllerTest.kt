@@ -2,7 +2,7 @@ package app.floatface.core
 
 import app.cash.turbine.test
 import kotlinx.coroutines.test.TestScope
-import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -101,16 +101,16 @@ class OnewheelControllerTest {
             assertEquals(ConnectionState.Scanning, awaitItem().connection)
 
             controller.start()
-            advanceUntilIdle()
+            runCurrent()
             assertEquals(1, harness.transport.startScanCalls.size)
 
             harness.transport.emit(TransportEvent.DeviceFound(deviceId, "Onewheel", emptyList()))
-            advanceUntilIdle()
+            runCurrent()
             assertEquals(ConnectionState.Connecting, expectMostRecentItem().connection)
             assertEquals(listOf(deviceId), harness.transport.connected)
 
             harness.transport.emit(TransportEvent.Connected)
-            advanceUntilIdle()
+            runCurrent()
             assertEquals(ConnectionState.Connected, expectMostRecentItem().connection)
             assertEquals(1, harness.transport.writes.size)
             assertTrue(harness.transport.writes[0].contentEquals(unlockBytes))
@@ -123,17 +123,17 @@ class OnewheelControllerTest {
     fun `keepalive re-writes unlock bytes on every tick and only ever writes unlock bytes`() =
         runControllerTest { harness, controller ->
             controller.start()
-            advanceUntilIdle()
+            runCurrent()
             harness.transport.emit(TransportEvent.DeviceFound(deviceId, null, emptyList()))
             harness.transport.emit(TransportEvent.Connected)
-            advanceUntilIdle()
+            runCurrent()
 
             assertEquals(1, harness.transport.writes.size) // the initial unlock write on Connected
 
             // FakeTicker doesn't auto-repeat: firing the scheduled keepalive task simulates cadence.
             repeat(3) {
                 harness.ticker.fireLast()
-                advanceUntilIdle()
+                runCurrent()
             }
 
             assertEquals(4, harness.transport.writes.size)
@@ -144,11 +144,11 @@ class OnewheelControllerTest {
     fun `CharacteristicChanged BATTERY_LEVEL decodes into telemetry`() = runControllerTest { harness, controller ->
         controller.uiState.test {
             controller.start()
-            advanceUntilIdle()
+            runCurrent()
             skipItems(1)
 
             harness.transport.emit(TransportEvent.CharacteristicChanged(OwCharacteristic.BATTERY_LEVEL, byteArrayOf(0x00, 0x40)))
-            advanceUntilIdle()
+            runCurrent()
             assertEquals(64, expectMostRecentItem().telemetry.batteryLevel)
 
             cancelAndIgnoreRemainingEvents()
@@ -159,11 +159,11 @@ class OnewheelControllerTest {
     fun `ToggleRecording then SPEED_RPM samples accumulate distance`() = runControllerTest { harness, controller ->
         controller.uiState.test {
             controller.start()
-            advanceUntilIdle()
+            runCurrent()
             skipItems(1)
 
             controller.submit(UserIntent.ToggleRecording)
-            advanceUntilIdle()
+            runCurrent()
             assertEquals(RecordingState.Recording, expectMostRecentItem().ride.recording)
             assertEquals(1, harness.recorder.startCalls.size)
 
@@ -172,13 +172,13 @@ class OnewheelControllerTest {
 
             harness.clock.elapsed = 0L
             harness.transport.emit(TransportEvent.CharacteristicChanged(OwCharacteristic.SPEED_RPM, rpmBytes(rpm)))
-            advanceUntilIdle()
+            runCurrent()
             // First sample after reset() integrates zero.
             assertEquals(0.0, expectMostRecentItem().ride.distanceMiles, 1e-9)
 
             harness.clock.elapsed = 3_600_000L // +1 hour
             harness.transport.emit(TransportEvent.CharacteristicChanged(OwCharacteristic.SPEED_RPM, rpmBytes(rpm)))
-            advanceUntilIdle()
+            runCurrent()
 
             val expectedMph = RpmSpeed.toMph(rpm, BoardModel.GT.tireDiameterInches)
             assertEquals(expectedMph, expectMostRecentItem().ride.distanceMiles, 1e-6)
@@ -191,27 +191,27 @@ class OnewheelControllerTest {
     fun `halfway warning buzzes exactly once per ride`() = runControllerTest { harness, controller ->
         controller.uiState.test {
             controller.start()
-            advanceUntilIdle()
+            runCurrent()
             skipItems(1)
 
             harness.transport.emit(TransportEvent.CharacteristicChanged(OwCharacteristic.BATTERY_LEVEL, byteArrayOf(0x00, 100)))
-            advanceUntilIdle()
+            runCurrent()
             expectMostRecentItem()
 
             controller.submit(UserIntent.ToggleRecording) // startBattery = 100
-            advanceUntilIdle()
+            runCurrent()
             expectMostRecentItem()
 
             assertEquals(0, harness.haptics.buzzes.size)
 
             harness.transport.emit(TransportEvent.CharacteristicChanged(OwCharacteristic.BATTERY_LEVEL, byteArrayOf(0x00, 50)))
-            advanceUntilIdle()
+            runCurrent()
             var state = expectMostRecentItem()
             assertEquals(1, harness.haptics.buzzes.size)
             assertTrue(state.ride.halfwayWarningActive)
 
             harness.transport.emit(TransportEvent.CharacteristicChanged(OwCharacteristic.BATTERY_LEVEL, byteArrayOf(0x00, 40)))
-            advanceUntilIdle()
+            runCurrent()
             state = expectMostRecentItem()
             assertEquals(1, harness.haptics.buzzes.size, "must latch, not re-fire")
             assertTrue(state.ride.halfwayWarningActive)
@@ -224,25 +224,27 @@ class OnewheelControllerTest {
     fun `Shutdown tears down without rescanning`() = runControllerTest { harness, controller ->
         controller.uiState.test {
             controller.start()
-            advanceUntilIdle()
+            runCurrent()
             skipItems(1)
 
             harness.transport.emit(TransportEvent.DeviceFound(deviceId, null, emptyList()))
             harness.transport.emit(TransportEvent.Connected)
-            advanceUntilIdle()
+            runCurrent()
             assertEquals(ConnectionState.Connected, expectMostRecentItem().connection)
             val startScansSoFar = harness.transport.startScanCalls.size
 
             controller.submit(UserIntent.Shutdown)
-            advanceUntilIdle()
+            runCurrent()
             assertEquals(ConnectionState.ShuttingDown, expectMostRecentItem().connection)
             assertEquals(1, harness.transport.disconnectCalls.size)
             assertEquals(1, harness.transport.closeGattCalls.size)
 
-            // The resulting Disconnected must be a no-op: no rescan.
+            // The resulting Disconnected must be a no-op: state stays ShuttingDown
+            // (so no new UI emission) and there is no rescan.
             harness.transport.emit(TransportEvent.Disconnected(GattStatus.SUCCESS))
-            advanceUntilIdle()
-            assertEquals(ConnectionState.ShuttingDown, expectMostRecentItem().connection)
+            runCurrent()
+            expectNoEvents()
+            assertEquals(ConnectionState.ShuttingDown, controller.uiState.value.connection)
             assertEquals(startScansSoFar, harness.transport.startScanCalls.size)
 
             cancelAndIgnoreRemainingEvents()
@@ -253,19 +255,19 @@ class OnewheelControllerTest {
     fun `Disconnected resets live telemetry but keeps ride state`() = runControllerTest { harness, controller ->
         controller.uiState.test {
             controller.start()
-            advanceUntilIdle()
+            runCurrent()
             skipItems(1)
 
             harness.transport.emit(TransportEvent.CharacteristicChanged(OwCharacteristic.BATTERY_LEVEL, byteArrayOf(0x00, 80)))
-            advanceUntilIdle()
+            runCurrent()
             expectMostRecentItem()
 
             controller.submit(UserIntent.ToggleRecording)
-            advanceUntilIdle()
+            runCurrent()
             expectMostRecentItem()
 
             harness.transport.emit(TransportEvent.Disconnected(GattStatus.SUCCESS))
-            advanceUntilIdle()
+            runCurrent()
             val state = expectMostRecentItem()
             assertNull(state.telemetry.batteryLevel)
             assertEquals(RecordingState.Recording, state.ride.recording)
@@ -278,23 +280,23 @@ class OnewheelControllerTest {
     fun `page navigation wraps within 0 to 3`() = runControllerTest { harness, controller ->
         controller.uiState.test {
             controller.start()
-            advanceUntilIdle()
+            runCurrent()
             skipItems(1)
 
             controller.submit(UserIntent.PrevPage) // wraps 0 -> 3
-            advanceUntilIdle()
+            runCurrent()
             assertEquals(3, expectMostRecentItem().page)
 
             controller.submit(UserIntent.NextPage)
-            advanceUntilIdle()
+            runCurrent()
             assertEquals(0, expectMostRecentItem().page)
 
             controller.submit(UserIntent.SelectPage(99))
-            advanceUntilIdle()
+            runCurrent()
             assertEquals(3, expectMostRecentItem().page)
 
             controller.submit(UserIntent.SelectPage(-5))
-            advanceUntilIdle()
+            runCurrent()
             assertEquals(0, expectMostRecentItem().page)
 
             cancelAndIgnoreRemainingEvents()
@@ -305,15 +307,15 @@ class OnewheelControllerTest {
     fun `ToggleRecording again stops recording`() = runControllerTest { harness, controller ->
         controller.uiState.test {
             controller.start()
-            advanceUntilIdle()
+            runCurrent()
             skipItems(1)
 
             controller.submit(UserIntent.ToggleRecording)
-            advanceUntilIdle()
+            runCurrent()
             assertEquals(RecordingState.Recording, expectMostRecentItem().ride.recording)
 
             controller.submit(UserIntent.ToggleRecording)
-            advanceUntilIdle()
+            runCurrent()
             assertEquals(RecordingState.Idle, expectMostRecentItem().ride.recording)
             assertEquals(1, harness.recorder.stopCalls.size)
             assertFalse(harness.recorder.startCalls.isEmpty())

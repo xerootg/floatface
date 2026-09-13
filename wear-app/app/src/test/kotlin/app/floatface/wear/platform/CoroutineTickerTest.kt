@@ -18,7 +18,7 @@ class CoroutineTickerTest {
 
     @Test
     fun repeatFiresActionMultipleTimesUnderVirtualTime() = runTest {
-        val ticker = CoroutineTicker(this)
+        val ticker = CoroutineTicker(backgroundScope)
         var fireCount = 0
 
         ticker.schedule(intervalMs = 1_000L, repeat = true) { fireCount++ }
@@ -31,7 +31,7 @@ class CoroutineTickerTest {
 
     @Test
     fun nonRepeatingScheduleFiresExactlyOnce() = runTest {
-        val ticker = CoroutineTicker(this)
+        val ticker = CoroutineTicker(backgroundScope)
         var fireCount = 0
 
         ticker.schedule(intervalMs = 1_000L, repeat = false) { fireCount++ }
@@ -44,7 +44,7 @@ class CoroutineTickerTest {
 
     @Test
     fun cancelStopsFurtherFiring() = runTest {
-        val ticker = CoroutineTicker(this)
+        val ticker = CoroutineTicker(backgroundScope)
         var fireCount = 0
 
         val cancellable = ticker.schedule(intervalMs = 1_000L, repeat = true) { fireCount++ }
