@@ -1,0 +1,22 @@
+<resources>
+    <string name="app_name">Floatface</string>
+
+    <!-- Connection status (SPEC §8.3) -->
+    <string name="status_scanning">Scanning…</string>
+    <string name="status_board_not_found">Board not found — is your phone\'s Bluetooth off?</string>
+    <string name="status_connecting">Connecting…</string>
+    <string name="status_discovering">Discovering…</string>
+    <string name="status_subscribing">Subscribing…</string>
+    <string name="status_unlocking">Unlocking…</string>
+    <string name="status_connected">Connected</string>
+    <string name="status_rescanning">Disconnected, rescanning…</string>
+    <string name="status_unlock_not_configured">Unlock bytes not configured</string>
+    <string name="status_service_not_found">Service not found</string>
+    <string name="status_write_char_not_found">uart_serial_write not found</string>
+
+    <!-- Ride page -->
+    <string name="unit_mph_est">mph (est.)</string>
+    <string name="halfway_warning">Past halfway — head back</string>
+    <string name="recording_on">● Recording</string>
+    <string name="recording_hint">Start/Stop to record</string>
+</resources>

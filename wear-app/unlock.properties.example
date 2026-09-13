@@ -1,0 +1,12 @@
+# Copy this file to unlock.properties (gitignored) and paste the 20 bytes you
+# captured for YOUR OWN board as 40 hex characters (no separators).
+#
+# This value is NOT a general secret or algorithm -- it is specific to one board
+# (and possibly tied to the FutureMotion account it was captured from). See the
+# repository root README.md ("Capturing your board's unlock bytes") for the
+# capture procedure, and PROTOCOL.md for why it can't be derived or shared.
+#
+# The all-zero placeholder below makes the app show "Unlock bytes not
+# configured" instead of attempting a doomed unlock. A clean checkout / CI build
+# works without this file (the build falls back to all-zero).
+onewheel.unlockBytesHex=0000000000000000000000000000000000000000
