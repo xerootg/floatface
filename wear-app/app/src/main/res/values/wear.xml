@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Static Wear Data Layer capabilities advertised by this watch app as soon as it
+  is installed (no need for the app to have run). The companion phone app queries
+  CapabilityClient for "floatface_watch_app" to detect whether the watch app is
+  present on a connected node. Keep the item value in sync with
+  ConfigSync.WATCH_APP_CAPABILITY.
+-->
+<resources>
+    <string-array name="android_wear_capabilities">
+        <item>floatface_watch_app</item>
+    </string-array>
+</resources>

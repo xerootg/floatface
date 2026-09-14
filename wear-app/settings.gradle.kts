@@ -20,4 +20,4 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "floatface-wear"
-include(":core", ":ble", ":app")
+include(":core", ":ble", ":app", ":phone")

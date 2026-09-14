@@ -54,5 +54,19 @@
             android:exported="false"
             android:foregroundServiceType="connectedDevice|location|health" />
 
+        <!-- Receives board config pushed from the companion phone app over the
+             Wear Data Layer (SPEC §10). Bound by Play Services, hence exported. -->
+        <service
+            android:name=".sync.BoardConfigListenerService"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.google.android.gms.wearable.DATA_CHANGED" />
+                <data
+                    android:scheme="wear"
+                    android:host="*"
+                    android:pathPrefix="/floatface" />
+            </intent-filter>
+        </service>
+
     </application>
 </manifest>

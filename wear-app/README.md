@@ -29,6 +29,11 @@ Hexagonal, three Gradle modules:
 | `:core` | Pure Kotlin/JVM domain — telemetry decoder, derived metrics, the pure connection **reducer**, the effect-runner controller, and all ports. No `android.*`. | JUnit5 on the JVM (fast, no device) |
 | `:ble` | Android adapter: a single-outstanding-operation GATT queue + `OnewheelTransport` over `android.bluetooth`. | Robolectric |
 | `:app` | Wear Compose UI, ViewModel, foreground service, Health Services recorder + ride log, platform adapters, DI. | Robolectric + Compose test |
+| `:phone` | Optional companion **phone** app (Compose Material3): pushes board config to the watch over the Wear Data Layer and helps install the watch app. Shares `:core`. | Robolectric + Compose test |
+
+The wire contract between phone and watch lives in `:core` (`ConfigSync`) so both
+sides reference one source of truth; the phone sends and the watch's
+`BoardConfigListenerService` applies via the same pure `applyPushedConfig`.
 
 `:core` defines interfaces (ports); `:ble`/`:app` provide adapters. The domain is
 single-threaded by construction: all inputs (BLE events, timer ticks, user
@@ -71,6 +76,66 @@ The build reads it into `BuildConfig.UNLOCK_BYTES_HEX` and uses it as the
 **default** until you override it on the watch. Without it (clean checkout / CI),
 the build falls back to the all-zero placeholder and the app shows **"Unlock
 bytes not configured"** until you set the bytes at runtime (Option A).
+
+### Option C — push from the companion phone app (Data Layer)
+
+Typing a 40-hex string on a watch keyboard is miserable. Install the companion
+phone app (`:phone`), type the unlock bytes and optional MAC on a real keyboard,
+tap **Send to watch**, and they arrive over the Wear Data Layer and apply
+immediately. See [Companion phone app](#companion-phone-app) below.
+
+## Companion phone app
+
+The `:phone` module is a small, **optional** provisioning helper — the watch app
+is fully standalone and never needs it at ride time. It does two things:
+
+1. **Push config to the watch.** Enter the unlock bytes / BLE MAC on the phone,
+   validated against the same `:core` rules as the watch, and push them at
+   `ConfigSync.PATH` over `DataClient`. The watch's `BoardConfigListenerService`
+   validates and applies them (consume-once: it deletes the Data Layer item after
+   applying, and every push carries a nonce so repeats still register).
+2. **Detect / help install the watch app.** The watch app advertises a static
+   Data Layer capability (`res/values/wear.xml` → `floatface_watch_app`). The
+   phone queries `CapabilityClient` to show whether the watch app is installed on
+   the connected watch, and offers **Install watch app**, which opens the watch
+   app's Play Store listing *on the watch* (`RemoteActivityHelper`) so you install
+   it with one tap.
+
+### Can the phone install the watch app directly?
+
+Not by transferring an APK. **Wear OS 3+ (Pixel Watch) has no API for a phone app
+to sideload an arbitrary APK onto the watch** — the legacy embedded-app
+(`wearApp`) mechanism was removed after Android Wear 1.x, and a watch can't
+bootstrap-install itself over the Data Layer (something must already be listening
+there). The two real paths are:
+
+- **Google Play** — publish both apps under the same applicationId; the watch app
+  then installs from the watch's Play Store (the **Install watch app** button
+  deep-links straight to that listing). Works only once published.
+- **ADB** — for a personal/sideloaded build (the common case here, since the
+  unlock bytes are your own board's), install directly:
+  ```bash
+  ./gradlew :app:assembleDebug
+  adb -s <watch-serial> install app/build/outputs/apk/debug/app-debug.apk
+  ```
+  Pair the watch for wireless debugging (Watch → Settings → Developer options →
+  Wireless debugging), `adb pair`, then `adb connect`. Use `adb devices -l` to
+  find `<watch-serial>`.
+
+### Pairing requirement (important)
+
+The Data Layer only delivers items between a phone app and watch app that share
+**both** the same `applicationId` (`app.floatface.wear`) **and the same signing
+key**. Debug builds share Android's default debug key, so a debug phone + debug
+watch build pair out of the box. For release, sign **both** with the *same*
+keystore or the push silently never arrives.
+
+### Build / install the phone app
+
+```bash
+./gradlew :phone:assembleDebug      # -> phone/build/outputs/apk/debug/phone-debug.apk
+adb install phone/build/outputs/apk/debug/phone-debug.apk   # on the phone
+```
 
 ## Build, test, run
 

@@ -708,6 +708,54 @@ in-progress exercise (`getCurrentExerciseInfoAsync`) and re-registers the
   capture steps and the `LocalConfig.mc.example` security note verbatim.
   `.gitignore` excludes `unlock.properties` + `local.properties` (done).
 
+### 10a. Runtime board config & companion phone app (Data Layer)
+
+Compile-time provisioning (§10) is now only an optional **seed**. The source of
+truth at runtime is a `BoardConfigStore` (`:core` port; DataStore-backed adapter
+in `:app`) holding `BoardConfig(unlockBytesHex, bleMac)`. Config can be set three
+ways, all landing in the same store:
+
+- **On the watch** — Diagnostics → Configure board (RemoteInput editors).
+- **Baked default** — `BuildConfig.UNLOCK_BYTES_HEX` seeds the store on first run
+  only if it parses to a configured value.
+- **Pushed from the phone** — the companion `:phone` app over the Wear Data Layer.
+
+**Wire contract (`:core` `ConfigSync`, one source of truth for both sides):**
+- Item path `PATH = "/floatface/board-config"`, string keys `unlock_hex`,
+  `ble_mac`, and a `nonce` present on every push (so two identical pushes still
+  differ and a consumed item is re-created).
+- `applyPushedConfig(unlockHex, bleMac, store, scope)` — pure apply logic,
+  JVM-tested: applies only non-blank **valid** fields (invalid unlock / malformed
+  MAC ignored; blank = "leave unchanged", never "clear"). Reused by the watch
+  receiver so validation lives in one place.
+
+**Watch receiver (`:app`)** — `BoardConfigListenerService : WearableListenerService`
+handles `onDataChanged`, filters `PATH`, calls `applyPushedConfig`, then
+**consume-once** deletes the item (`deleteDataItems`) so a stale item isn't
+re-applied on reconnect.
+
+**Phone sender (`:phone`)** — `WearConfigSender` puts a `PutDataMapRequest` at
+`PATH` via `DataClient` (`NoWatch` when `NodeClient.connectedNodes` is empty);
+pure `ConfigDataMap.build` composes the payload behind a `ConfigSender` interface
+so the ViewModel is fake-testable.
+
+**Pairing constraint** — the Data Layer only bridges apps sharing the *same*
+`applicationId` (`app.floatface.wear`) **and** signing key. `:phone` therefore
+reuses the watch `applicationId`; both use the debug key in debug, and must share
+one keystore for release.
+
+#### 10a.1 Detect / install the watch app
+
+The watch app advertises a static capability `floatface_watch_app`
+(`res/values/wear.xml`; constant `ConfigSync.WATCH_APP_CAPABILITY`). The phone's
+`WatchInstaller` queries `CapabilityClient` to classify each connected node as
+`Installed` / `NotInstalled` / `NoWatch`, and — for nodes lacking it — opens the
+watch app's Play Store listing **on the watch** via `RemoteActivityHelper`
+(`market://details?id=app.floatface.wear`). Wear OS 3+ exposes **no** API to
+transfer/sideload an APK from phone to watch (legacy `wearApp` embedding is gone);
+the supported paths are Google Play (the deep-link above) or `adb install` for a
+personal build. Detection + deep-link are the honest best-effort "from the phone".
+
 ---
 
 ## 11. Permissions & manifest

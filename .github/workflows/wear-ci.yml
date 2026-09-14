@@ -42,7 +42,9 @@ jobs:
           :core:test
           :ble:testDebugUnitTest
           :app:testDebugUnitTest
+          :phone:testDebugUnitTest
           :app:assembleDebug
+          :phone:assembleDebug
 
       - name: Upload test reports
         if: always()

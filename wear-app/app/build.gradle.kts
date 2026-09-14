@@ -106,6 +106,7 @@ dependencies {
     implementation(libs.androidx.wear)
     implementation(libs.androidx.wear.ongoing)
     implementation(libs.androidx.wear.input)
+    implementation(libs.play.services.wearable)
 
     val composeBom = platform(libs.compose.bom)
     implementation(composeBom)
